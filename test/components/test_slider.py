@@ -100,3 +100,31 @@ class TestSlider:
     def test_slider_requires_minimum_less_than_maximum(self, minimum, maximum):
         with pytest.raises(ValueError, match="minimum must be less than maximum"):
             gr.Slider(minimum=minimum, maximum=maximum)
+
+    @patch("random.randint", return_value=0)
+    def test_random_slider_respects_the_minimum_offset(self, _mock_randint):
+        slider = gr.Slider(minimum=0.04, maximum=0.35, step=0.1, randomize=True)
+
+        value = slider.get_random_value()
+
+        assert value == 0.04
+        assert slider.preprocess(value) == 0.04
+
+    @patch("random.randint", return_value=3)
+    def test_random_slider_keeps_the_offset_on_the_last_step(self, _mock_randint):
+        slider = gr.Slider(minimum=0.04, maximum=0.35, step=0.1, randomize=True)
+
+        assert slider.get_random_value() == 0.34
+
+    @patch("random.randint", return_value=3)
+    def test_random_slider_can_draw_the_maximum(self, mock_randint):
+        slider = gr.Slider(minimum=0, maximum=0.3, step=0.1, randomize=True)
+
+        assert slider.get_random_value() == 0.3
+        assert mock_randint.call_args.args == (0, 3)
+
+    @patch("random.randint", return_value=3)
+    def test_random_slider_handles_scientific_notation_steps(self, _mock_randint):
+        slider = gr.Slider(minimum=0, maximum=0.0001, step=1e-05, randomize=True)
+
+        assert slider.get_random_value() == pytest.approx(0.00003)

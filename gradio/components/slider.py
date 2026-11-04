@@ -19,6 +19,12 @@ if TYPE_CHECKING:
     from gradio.components import Timer
 
 
+def _count_decimals(value: float) -> int:
+    """Return the number of decimal places needed to represent ``value``."""
+    text = f"{float(value):.15f}".rstrip("0").rstrip(".")
+    return len(text.split(".", 1)[1]) if "." in text else 0
+
+
 @document()
 class Slider(FormComponent):
     """
@@ -127,14 +133,18 @@ class Slider(FormComponent):
         return self.minimum
 
     def get_random_value(self):
-        n_steps = int((self.maximum - self.minimum) / self.step)
-        step = random.randint(0, n_steps)
-        value = self.minimum + step * self.step
-        # Round to number of decimals in step so that UI doesn't display long decimals
-        n_decimals = max(str(self.step)[::-1].find("."), 0)
+        # Use the offset grid defined by minimum + k * step. Floating point
+        # division can undershoot an integer boundary (0.3 / 0.1 == 2.999...),
+        # so floor with a small tolerance to include the final step.
+        n_steps = max(math.floor((self.maximum - self.minimum) / self.step + 1e-9), 0)
+        index = random.randint(0, n_steps)
+        value = self.minimum + index * self.step
+        # Round to the precision of both the step and the minimum so the offset
+        # survives (e.g. minimum=0.04, step=0.1 -> 0.04, 0.14, ...).
+        n_decimals = max(_count_decimals(self.step), _count_decimals(self.minimum))
         if n_decimals:
             value = round(value, n_decimals)
-        return value
+        return min(max(value, self.minimum), self.maximum)
 
     def postprocess(self, value: float | None) -> float:
         """
